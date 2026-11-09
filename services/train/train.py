@@ -29,7 +29,7 @@ def make_datasets(data_dir, img_height=28, img_width=28, batch_size=32):
     val_ds = val_ds.prefetch(buffer_size=AUTOTUNE)
     return train_ds, val_ds, class_names
 
-def build_model(num_classes):
+def build_model(num_classes, learning_rate):
     model = keras.Sequential([
         tf.keras.layers.Rescaling(1./255),
         tf.keras.layers.Flatten(input_shape=(28,28,3)),
@@ -38,7 +38,7 @@ def build_model(num_classes):
         tf.keras.layers.Dense(num_classes, activation='softmax'),
     ])
     model.compile(
-        optimizer='sgd',
+        optimizer=keras.optimizers.SGD(learning_rate=learning_rate),
         loss='sparse_categorical_crossentropy',
         metrics=['accuracy']
     )
@@ -51,28 +51,32 @@ def main():
 
     batch_size = int(os.environ.get("BATCH_SIZE", "32"))
     epochs = int(os.environ.get("EPOCHS", "30"))
-
+    learning_rate = float(os.environ.get("LEARNING_RATE", "0.01"))
+    
     mlflow.set_tracking_uri(mlflow_uri)
     mlflow.set_experiment(exp_name)
 
     train_ds, val_ds, class_names = make_datasets(data_dir, batch_size=batch_size)
-    model = build_model(num_classes=len(class_names))
+    model = build_model(num_classes=len(class_names),learning_rate=learning_rate)
 
     with mlflow.start_run():
         mlflow.log_param("batch_size", batch_size)
         mlflow.log_param("epochs", epochs)
+        mlflow.log_param("learning_rate", learning_rate)
         mlflow.log_param("classes", ",".join(class_names))
 
         history = model.fit(train_ds, validation_data=val_ds, epochs=epochs)
 
-        # log métriques dernière époque
-        mlflow.log_metric("train_accuracy", float(history.history["accuracy"][-1]))
-        mlflow.log_metric("val_accuracy", float(history.history["val_accuracy"][-1]))
+        for i in range(epochs):
+            mlflow.log_metric("accuracy", history.history["accuracy"][i], step=i)
+            mlflow.log_metric("loss", history.history["loss"][i], step=i)
+            mlflow.log_metric("val_accuracy", history.history["val_accuracy"][i], step=i)
+            mlflow.log_metric("val_loss", history.history["val_loss"][i], step=i)
 
         # log modèle
-        mlflow.tensorflow.log_model(model, artifact_path="model", registered_model_name="geometrie-model")
+        mlflow.tensorflow.log_model(model, artifact_path="model")
 
-        print("Model logged to MLflow and registered as geometrie-model")
+        print(f"Run terminé")
 
 if __name__ == "__main__":
     main()

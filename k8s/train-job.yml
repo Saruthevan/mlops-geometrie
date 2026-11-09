@@ -1,0 +1,33 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: train
+spec:
+  backoffLimit: 0
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: train
+          image: geometrie-train
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: MLFLOW_TRACKING_URI
+              value: http://mlflow:5000
+            - name: DATA_DIR
+              value: /data/knowledge
+            - name: EPOCHS
+              value: "10"
+            - name: BATCH_SIZE
+              value: "32"
+            - name: LEARNING_RATE
+              value: "0.01"
+          volumeMounts:
+            - name: knowledge
+              mountPath: /data/knowledge
+              readOnly: true
+      volumes:
+        - name: knowledge
+          hostPath:
+            path: /data/knowledge
+            type: Directory
