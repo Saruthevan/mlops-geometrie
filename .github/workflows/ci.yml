@@ -1,0 +1,43 @@
+name: CI 
+
+on: push
+
+jobs:
+    ci: 
+        runs-on: ubuntu-latest
+        steps: 
+            - name: 1. récupérer le code
+              uses: actions/checkout@v4
+
+            - name: 2. Installer Python 3.11
+              uses: actions/setup-python@v5
+              with: 
+                python-version: "3.11"
+                
+            - name: 3. Installer les dépendances
+              run: |
+                pip install --upgrade pip
+                pip install -r services/api/requirements.txt
+                pip install pytest httpx
+
+            - name: 4. Vérifier la syntaxe 
+              run: | 
+                python -m py_compile services/api/app.py services/train/train.py tests/test_api.py
+
+            - name: 5. Lancer les tests
+              run: | 
+                pytest -v tests 
+
+            - name: 6. Construire l'image Docker de l'API
+              run: | 
+                docker build -t geometrie-api ./services/api
+                
+            - name: 7. Afficher le résultat du pipeline
+              if: always()
+              run: |
+                if [ "${{ job.status }}" = "success" ]; then
+                    echo "Pipeline réussi"
+                else 
+                    echo "Pipeline échoué"
+                    exit 1
+                fi 
